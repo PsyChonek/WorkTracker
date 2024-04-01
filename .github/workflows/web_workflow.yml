@@ -1,0 +1,55 @@
+name: Build docker image, push to Docker registry, then deploy to VM
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - 'README.md'
+      - 'LICENSE'
+
+jobs:
+  build:
+    name: Build and push docker image
+    runs-on: self-hosted
+    environment: prod
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Grant execute permission to script
+        run: chmod +x ./scripts/replace_env.sh
+
+      - name: Replace .env variables
+        env:
+          CONNECTION_STRING: ${{ secrets.CONNECTION_STRING }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+        run: ./scripts/replace_env.sh
+
+      - name: Run docker build
+        run: docker build -t worktracker .
+  deploy:
+    name: Deploy to VM
+    runs-on: self-hosted
+    needs: build
+    environment: prod
+    steps:
+      - name: Copy docker-compose.yml
+        uses: appleboy/scp-action@v0.1.4
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          source: docker-compose.yml
+          target: worktracker
+
+      - name: Connect ssh, pull and run
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            cd worktracker
+            docker compose down
+            docker compose pull
+            docker compose up -d
