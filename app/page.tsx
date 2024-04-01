@@ -17,6 +17,10 @@ export default function Home() {
 
 	// Load data from local storage
 	const loadData = () => {
+		if (typeof window === 'undefined') {
+			return [];
+		}
+
 		const storage = localStorage.getItem("storageJSON") || null;
 		if (storage !== null) {
 			const storageJSON: StorageJSON = JSON.parse(storage);
@@ -123,6 +127,10 @@ export default function Home() {
 			name: "Work Tracker",
 			lastSaveDate: new Date(),
 		};
+
+		if (typeof window === 'undefined') {
+			return;
+		}
 
 		localStorage.setItem("storageJSON", JSON.stringify(storageJSON));
 	}, [data, date]);
