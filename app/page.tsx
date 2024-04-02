@@ -147,11 +147,11 @@ export default function Home() {
 	}, [data]);
 
 	return (
-		<main>
+		<main className="m-20">
 			<h1 className="text-6xl font-bold text-center m-5">Work Tracker</h1>
 
 			<h2 className="text-4xl font-bold text-center m-5">Calendar</h2>
-			<div className="flex flex-row items-start justify-center py-2 gap-4">
+			<div className="flex flex-row items-start justify-center py-2 gap-4 flex-wrap">
 				<Calendar
 					mode="default"
 					selected={date}
@@ -205,11 +205,11 @@ export default function Home() {
 				</div>
 			</div>
 			<h2 className="text-4xl font-bold text-center m-5">Work Items</h2>
-			<div className="flex flex-col items-center justify-center py-2">
-				<div className="flex flex-col items-center justify-center w-full gap-5">
+			<div className="flex flex-col items-center justify-center py-2 flex-wrap">
+				<div className="flex flex-col items-center justify-center w-full gap-5 flex-wrap">
 					<div className="flex flex-row items-center justify-center w-full gap-5 flex-wrap">
 						{data.map((item, index) => (
-							<Card key={index} className="">
+							<Card key={index} className="flex-wrap">
 								<CardHeader>
 									<CardTitle>
 										<Input
@@ -223,7 +223,7 @@ export default function Home() {
 										/>
 									</CardTitle>
 								</CardHeader>
-								<CardContent className="flex flex-row gap-4">
+								<CardContent className="flex flex-row gap-4 flex-wrap">
 									<CardDescription>Monthly Hours</CardDescription>
 									<Input
 										type="number"
