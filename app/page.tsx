@@ -10,6 +10,10 @@ import { Label } from "@/components/ui/label";
 import Holidays from "date-holidays";
 import { title } from "process";
 import { Style } from "util";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { tr } from "date-fns/locale";
 
 export default function Home() {
 	// Current date
@@ -17,17 +21,21 @@ export default function Home() {
 
 	// Load data from local storage
 	const loadData = () => {
-		if (typeof window === 'undefined') {
+		if (typeof window === "undefined") {
 			return [];
 		}
 
 		const storage = localStorage.getItem("storageJSON") || null;
 		if (storage !== null) {
-			const storageJSON: StorageJSON = JSON.parse(storage);
+			try {
+				const storageJSON: StorageJSON = JSON.parse(storage);
 
-			var dateKey = "M" + date.getMonth() + "Y" + date.getFullYear();
+				var dateKey = "M" + date.getMonth() + "Y" + date.getFullYear();
 
-			return storageJSON.byMonth[dateKey] || [];
+				return storageJSON.byMonth[dateKey] || [];
+			} catch (e) {
+				console.log("Error parsing JSON", e);
+			}
 		}
 		return [];
 	};
@@ -109,8 +117,9 @@ export default function Home() {
 
 	const [thisMonthWorkHours, setThisMonthWorkHours] = useState<number>(workHours());
 	const [thisMonthFreeHours, setThisMothFreeHours] = useState<number>(holidaysHours());
-	const [thisMonthRemainingWorkHours, setThisMonthRemainingWorkHours] = useState<number>(remainingWorkHours());
+	const [thisMonthAvailableWorkHours, setThisMonthRemainingWorkHours] = useState<number>(remainingWorkHours());
 	const [thisMonthCompletedWorkHours, setThisMonthCompletedWorkHours] = useState<number>(data.reduce((acc, item) => acc + item.completedWork, 0));
+	const [thisMonthRemainingWorkHours, setThisMonthRemainingWorkHoursMD] = useState<number>(remainingWorkHours() - data.reduce((acc, item) => acc + item.completedWork, 0));
 
 	function addNew() {
 		setData([...data, { projectName: "New Project", monthlyHours: 0, completedWork: 0 }]);
@@ -118,8 +127,8 @@ export default function Home() {
 
 	useEffect(() => {
 		setThisMonthCompletedWorkHours(data.reduce((acc, item) => acc + item.completedWork, 0));
+		setThisMonthRemainingWorkHoursMD(remainingWorkHours() - data.reduce((acc, item) => acc + item.completedWork, 0));
 
-		console.log("Data changed, saving...", data);
 		var dateKey = "M" + date.getMonth() + "Y" + date.getFullYear();
 
 		let storageJSON: StorageJSON = {
@@ -128,12 +137,16 @@ export default function Home() {
 			lastSaveDate: new Date(),
 		};
 
-		if (typeof window === 'undefined') {
+		if (typeof window === "undefined") {
 			return;
 		}
 
 		localStorage.setItem("storageJSON", JSON.stringify(storageJSON));
-	}, [data, date]);
+	}, [data, date, remainingWorkHours]);
+
+	function exportModal() {}
+
+	function importModal() {}
 
 	return (
 		<main>
@@ -149,21 +162,30 @@ export default function Home() {
 					weekStartsOn={1}
 					disableNavigation={true}
 					modifiers={{
-						holidays: (date) => { 
+						holidays: (date) => {
 							var hd: Holidays = new Holidays("CZ");
 							let hDays: any = hd.getHolidays(date.getFullYear());
 							return hDays.some((d: any) => {
 								return d.start.toISOString() === date.toISOString();
 							});
-					}}}
+						},
+						weekend: (date) => {
+							return date.getDay() === 0 || date.getDay() === 6;
+						}
+					}}
 					modifiersStyles={{
 						holidays: {
 							color: "#33cc33",
 							fontWeight: "bold",
 						},
 						today: {
-							background: "#404040",
-						}
+							background: "darkblue",
+							color: "white",
+						},
+						weekend: {
+							color: "red",
+						},
+
 					}}
 				/>
 
@@ -175,10 +197,13 @@ export default function Home() {
 						Free hours: <b>{thisMonthFreeHours}</b>
 					</Label>
 					<Label>
-						Remaining work hours: <b>{thisMonthRemainingWorkHours}</b>
+						Available work hours: <b>{thisMonthAvailableWorkHours}</b>
 					</Label>
 					<Label>
 						Completed work hours: <b>{thisMonthCompletedWorkHours}</b>
+					</Label>
+					<Label>
+						Remaining work hours: <b>{thisMonthRemainingWorkHours}</b>
 					</Label>
 				</div>
 			</div>
@@ -250,6 +275,21 @@ export default function Home() {
 						<button onClick={addNew} className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded mt-4">
 							Add New
 						</button>
+						<Dialog>
+							<DialogTrigger className="bg-orange-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded mt-4">Data</DialogTrigger>
+							<DialogContent>
+								<DialogHeader>
+									<DialogTitle>Saved data</DialogTitle>
+									<Textarea
+										defaultValue={localStorage.getItem("storageJSON") ?? ""}
+										onChange={(e) => {
+											localStorage.setItem("storageJSON", e.target.value);
+											setData(loadData());
+										}}
+									/>
+								</DialogHeader>
+							</DialogContent>
+						</Dialog>
 					</div>
 				</div>
 			</div>
