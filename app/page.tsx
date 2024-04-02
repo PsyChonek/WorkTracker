@@ -8,12 +8,9 @@ import { Input } from "@/components/ui/input";
 import { Calendar } from "@/components/ui/calendar";
 import { Label } from "@/components/ui/label";
 import Holidays from "date-holidays";
-import { title } from "process";
-import { Style } from "util";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { tr } from "date-fns/locale";
+import { set } from "date-fns";
 
 export default function Home() {
 	// Current date
