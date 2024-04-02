@@ -1,7 +1,7 @@
 version: '3.8'
 name: worktracker
 services:
-  papu:
+  worktracker:
     container_name: worktracker_app
     image: worktracker
     ports:
