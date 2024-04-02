@@ -1,0 +1,21 @@
+version: '3.8'
+name: worktracker
+services:
+  papu:
+    container_name: worktracker_app
+    image: worktracker
+    ports:
+      - 3020:3000
+    restart: always
+    # volumes: # Mount logs to user/worktracker/logs
+    #   - /var/log/worktracker:/usr/src/app/logs
+    networks:
+      - worktracker-network
+
+networks:
+  worktracker-network:
+    external: true
+
+# volumes:
+#   worktracker-data:
+#     external: true
