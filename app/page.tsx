@@ -117,9 +117,9 @@ export default function Home() {
 
 	const [thisMonthWorkHours, setThisMonthWorkHours] = useState<number>(workHours());
 	const [thisMonthFreeHours, setThisMothFreeHours] = useState<number>(holidaysHours());
-	const [thisMonthAvailableWorkHours, setThisMonthRemainingWorkHours] = useState<number>(remainingWorkHours());
+	const [thisMonthAvailableWorkHours, setThisMonthAvailableWorkHours] = useState<number>(remainingWorkHours());
 	const [thisMonthCompletedWorkHours, setThisMonthCompletedWorkHours] = useState<number>(data.reduce((acc, item) => acc + item.completedWork, 0));
-	const [thisMonthRemainingWorkHours, setThisMonthRemainingWorkHoursMD] = useState<number>(remainingWorkHours() - data.reduce((acc, item) => acc + item.completedWork, 0));
+	const [thisMonthRemainingWorkHours, setThisMonthRemainingWorkHours] = useState<number>(remainingWorkHours() - data.reduce((acc, item) => acc + item.completedWork, 0));
 
 	function addNew() {
 		setData([...data, { projectName: "New Project", monthlyHours: 0, completedWork: 0 }]);
@@ -127,7 +127,7 @@ export default function Home() {
 
 	useEffect(() => {
 		setThisMonthCompletedWorkHours(data.reduce((acc, item) => acc + item.completedWork, 0));
-		setThisMonthRemainingWorkHoursMD(remainingWorkHours() - data.reduce((acc, item) => acc + item.completedWork, 0));
+		setThisMonthRemainingWorkHours(remainingWorkHours() - data.reduce((acc, item) => acc + item.completedWork, 0));
 
 		var dateKey = "M" + date.getMonth() + "Y" + date.getFullYear();
 
@@ -142,11 +142,9 @@ export default function Home() {
 		}
 
 		localStorage.setItem("storageJSON", JSON.stringify(storageJSON));
-	}, [data, date, remainingWorkHours]);
 
-	function exportModal() {}
-
-	function importModal() {}
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [data]);
 
 	return (
 		<main>
@@ -171,7 +169,7 @@ export default function Home() {
 						},
 						weekend: (date) => {
 							return date.getDay() === 0 || date.getDay() === 6;
-						}
+						},
 					}}
 					modifiersStyles={{
 						holidays: {
@@ -185,7 +183,6 @@ export default function Home() {
 						weekend: {
 							color: "red",
 						},
-
 					}}
 				/>
 
@@ -232,9 +229,16 @@ export default function Home() {
 										type="number"
 										value={item.monthlyHours}
 										onChange={(e) => {
+											let value = Number(e.target.value);
+
 											const newData = [...data];
-											newData[index].monthlyHours = Number(e.target.value);
+											newData[index].monthlyHours = value;
 											setData(newData);
+
+											// Remove leading zeros
+											if (e.target.value.startsWith("0")) {
+												e.target.value = value.toString();
+											}
 										}}
 									/>
 									<CardDescription>Completed Work</CardDescription>
@@ -242,9 +246,15 @@ export default function Home() {
 										type="number"
 										value={item.completedWork}
 										onChange={(e) => {
+											let value = Number(e.target.value);
 											const newData = [...data];
-											newData[index].completedWork = Number(e.target.value);
+											newData[index].completedWork = value;
 											setData(newData);
+
+											// Remove leading zeros
+											if (e.target.value.startsWith("0")) {
+												e.target.value = value.toString();
+											}
 										}}
 									/>
 								</CardContent>
@@ -281,7 +291,7 @@ export default function Home() {
 								<DialogHeader>
 									<DialogTitle>Saved data</DialogTitle>
 									<Textarea
-										defaultValue={localStorage.getItem("storageJSON") ?? ""}
+										defaultValue={(typeof window === "undefined" ? "" : localStorage.getItem("storageJSON")) ?? ""}
 										onChange={(e) => {
 											localStorage.setItem("storageJSON", e.target.value);
 											setData(loadData());
