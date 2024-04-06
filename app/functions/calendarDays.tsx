@@ -38,11 +38,8 @@ export function getHolidaysDaysInWorkingDays(startDate: Date, endDate: Date) {
 }
 
 // Calculate work hours
-export const workHours = (date:Date): number => {
+export const workHours = (startDate:Date, endDate:Date): number => {
 	let workHours = 0;
-
-	let startDate = new Date(date.getFullYear(), date.getMonth(), 1);
-	let endDate = new Date(date.getFullYear(), date.getMonth() + 1, 0);
 
 	workHours = getWorkingDaysWithoutHolidays(startDate, endDate) * 8;
 	workHours -= getHolidaysDaysInWorkingDays(startDate, endDate) * 8;

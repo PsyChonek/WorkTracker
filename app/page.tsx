@@ -20,10 +20,6 @@ export default function Home() {
 
 	const [currentMonthAndYear, setCurrentMonthAndYear] = useState<string>("M" + date.getMonth() + "Y" + date.getFullYear());
 
-	useEffect(() => {
-		setCurrentMonthAndYear("M" + date.getMonth() + "Y" + date.getFullYear());
-	}, [date]);
-
 	// Load data from local storage
 	const loadData = (): StorageJSON => {
 		const storage = localStorage.getItem("storageJSON") || null;
@@ -33,12 +29,10 @@ export default function Home() {
 				const storageJSON: StorageJSON = JSON.parse(storage);
 				return storageJSON;
 			} catch (e) {
-				console.log("Error parsing JSON", e);
+				console.error("Error parsing JSON", e);
 			}
 		}
 
-		console.log("No data found, creating new one");
-		
 		return {
 			byMonth: {},
 			name: "Work Tracker",
@@ -51,25 +45,56 @@ export default function Home() {
 	};
 
 	const updateWorkItem = (index: number, workItem: WorkItem) => {
-		let currentMonth = data?.byMonth[currentMonthAndYear];
-		if (currentMonth === undefined) {
-			return;
-		}
-
-		currentMonth[index] = workItem;
+		// Create a new object with the updated data
+		const newData: StorageJSON = {
+			...data,
+			byMonth: {
+				...data?.byMonth,
+				[currentMonthAndYear]: data?.byMonth[currentMonthAndYear]?.map((item, i) => (i === index ? workItem : item)) ?? [],
+			},
+			name: data?.name ?? "",
+			lastSaveDate: new Date(),
+		};	
+	
+		setData(newData);
 	};
 
 	const addWorkItem = () => {
-		data?.byMonth[currentMonthAndYear].push({
-			projectName: "",
-			completedWork: 0,
-			monthlyHours: 0,
-		});
+		// Create a new object with the updated data
+		const newData: StorageJSON = {
+			...data,
+			byMonth: {
+				...data?.byMonth,
+				[currentMonthAndYear]: [
+					...(data?.byMonth[currentMonthAndYear] ?? []),
+					{
+						projectName: "New Project",
+						monthlyHours: 0,
+						completedWork: 0,
+					},
+				],
+			},
+			name: data?.name ?? "",
+			lastSaveDate: new Date(),
+		};
+
+		setData(newData);
 	};
 
 	const removeWorkItem = (index: number) => {
-		console.log("Removing item", index);
-		data?.byMonth[currentMonthAndYear].splice(index, 1);
+		// Remove the item from the array
+		// Create a new object with the updated data
+		const newData: StorageJSON = {
+			...data,
+			byMonth: {
+				...data?.byMonth,
+				[currentMonthAndYear]: data?.byMonth[currentMonthAndYear]?.filter((_, i) => i !== index) ?? [],
+			},
+			name: data?.name ?? "",
+			lastSaveDate: new Date(),
+		};
+
+		setData(newData);
 	};
 
 	useEffect(() => {
@@ -78,16 +103,17 @@ export default function Home() {
 		}
 
 		if (data === undefined || data === null) {
-			setData(loadData());
+			let storageJSON = loadData();
+			setData(storageJSON);
 			return;
 		}
 
 		saveData(data);
-	}, [, data]);
+	}, [data]);
 
-	const [thisMonthWorkHours, setThisMonthWorkHours] = useState<number>(workHours(date));
-	const [thisMonthFreeHours, setThisMothFreeHours] = useState<number>(holidaysHours(date));
-	const [thisMonthAvailableWorkHours, setThisMonthAvailableWorkHours] = useState<number>();
+	const [thisMonthWorkHours, setThisMonthWorkHours] = useState<number>(0);
+	const [thisMonthFreeHours, setThisMothFreeHours] = useState<number>(0);
+	const [thisMonthAvailableWorkHours, setThisMonthAvailableWorkHours] = useState<number>(0);
 	const [thisMonthCompletedWorkHours, setThisMonthCompletedWorkHours] = useState<number>(0);
 	const [thisMonthRemainingWorkHours, setThisMonthRemainingWorkHours] = useState<number>(0);
 
@@ -95,9 +121,21 @@ export default function Home() {
 		let currentMonthProjects = data?.byMonth[currentMonthAndYear] || [];
 
 		setThisMonthCompletedWorkHours(currentMonthProjects.reduce((acc, item) => acc + item.completedWork, 0));
-		setThisMonthRemainingWorkHours(remainingWorkHours(date) - currentMonthProjects.reduce((acc, item) => acc + item.completedWork, 0));
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [data]);
+		setThisMonthRemainingWorkHours(thisMonthWorkHours- thisMonthFreeHours - currentMonthProjects.reduce((acc, item) => acc + item.completedWork, 0));
+	}, [currentMonthAndYear, data, thisMonthFreeHours, thisMonthWorkHours]);
+
+	useEffect(() => {
+		setCurrentMonthAndYear("M" + date.getMonth() + "Y" + date.getFullYear());
+
+		const startDate = new Date(date.getFullYear(), date.getMonth(), 1);
+		const endDate = new Date(date.getFullYear(), date.getMonth() + 1, 0);
+
+
+		const workHoursMissed = workHours(startDate, date)
+		setThisMonthAvailableWorkHours(workHours(startDate,endDate) - holidaysHours(date) - workHoursMissed);
+		setThisMonthWorkHours(workHours(startDate,endDate));
+		setThisMothFreeHours(holidaysHours(date));
+	}, [date]);
 
 	return (
 		<main className="m-20">
@@ -212,11 +250,11 @@ export default function Home() {
 								</CardContent>
 								<CardContent className="flex flex-row gap-4">
 									<CardDescription>Remaining Work</CardDescription>
-									<span>{item.monthlyHours - item.completedWork}</span>
+									<span>{(item.monthlyHours - item.completedWork) < 0 ? 0 : (item.monthlyHours - item.completedWork)}</span>
 									<CardDescription>Percentage Completed</CardDescription>
 									<span>{item.monthlyHours > 0 ? ((item.completedWork / item.monthlyHours) * 100).toFixed(2) : 0}%</span>
 									<CardDescription>MD Remaining</CardDescription>
-									<span>{item.monthlyHours / 8 - item.completedWork / 8}</span>
+									<span>{(item.monthlyHours / 8 - item.completedWork / 8) < 0 ? 0 : (item.monthlyHours / 8 - item.completedWork / 8) }</span>
 								</CardContent>
 								<CardFooter className="flex flex-row-reverse gap-4">
 									<button
@@ -247,7 +285,7 @@ export default function Home() {
 												const storageJSON: StorageJSON = JSON.parse(e.target.value);
 												setData(storageJSON);
 											} catch (e) {
-												console.log("Error parsing JSON", e);
+												console.error("Error parsing JSON", e);
 											}
 										}}
 									/>
