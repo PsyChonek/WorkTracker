@@ -199,7 +199,7 @@ export default function Home() {
 			<div className="flex flex-col items-center justify-center py-2 flex-wrap">
 				<div className="flex flex-col items-center justify-center w-full gap-5 flex-wrap">
 					<div className="flex flex-row items-center justify-center w-full gap-5 flex-wrap">
-						{data?.byMonth[currentMonthAndYear].map((item, index) => (
+						{data?.byMonth[currentMonthAndYear]?.map((item, index) => (
 							<Card key={index} className="flex-wrap">
 								<CardHeader>
 									<CardTitle>
