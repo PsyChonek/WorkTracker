@@ -12,7 +12,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Textarea } from "@/components/ui/textarea";
 import { holidaysHours, remainingWorkHours, workHours } from "./functions/calendarDays";
 import { Login, PullProjects, PullWorkItems } from "./services/tr";
-import { json } from "stream/consumers";
 import { ProjectAllUserOutput, WorksheetAllOutput } from "./trclient/applicationwebservice";
 
 export default function Home() {
@@ -39,6 +38,11 @@ export default function Home() {
 			byMonth: {},
 			name: "Work Tracker",
 			lastSaveDate: new Date(),
+			apiSettings: {
+				url: "https://api.example.cz",
+				username: "username",
+				password: "password",
+			},
 		};
 	};
 
@@ -56,6 +60,11 @@ export default function Home() {
 			},
 			name: data?.name ?? "",
 			lastSaveDate: new Date(),
+			apiSettings: data?.apiSettings ?? {
+				url: "https://api.example.cz",
+				username: "username",
+				password: "password",
+			},
 		};	
 	
 		setData(newData);
@@ -78,6 +87,11 @@ export default function Home() {
 			},
 			name: data?.name ?? "",
 			lastSaveDate: new Date(),
+			apiSettings: data?.apiSettings ?? {
+				url: "https://api.example.cz",
+				username: "username",
+				password: "password",
+			},
 		};
 
 		setData(newData);
@@ -94,6 +108,11 @@ export default function Home() {
 			},
 			name: data?.name ?? "",
 			lastSaveDate: new Date(),
+			apiSettings: data?.apiSettings ?? {
+				url: "https://api.example.cz",
+				username: "username",
+				password: "password",
+			},
 		};
 
 		setData(newData);
@@ -114,13 +133,20 @@ export default function Home() {
 	}, [data]);
 
 	const LoginClick = () => {
-		var settings = storageJSON.get;
-		Login(settings.apiSettings);
+		var apiSettings = data?.apiSettings;
+		if (!apiSettings) {
+			return;
+		}
+
+		Login(apiSettings);
 	};
 
 	const PullWorkItemsClick = () => {
-		var settings = storageJSON.get;
-		PullWorkItems(settings.apiSettings).then((workItems: WorksheetAllOutput[]) => {
+		var apiSettings = data?.apiSettings;
+		if (!apiSettings) {
+			return;
+		}
+		PullWorkItems(apiSettings).then((workItems: WorksheetAllOutput[]) => {
 			console.log(workItems);
 
 			// Filter work items by date
@@ -132,7 +158,7 @@ export default function Home() {
 			console.log(workItems);
 
 			// Add to each project hours from work items
-			var newData = [...data];
+			var newData = data?.byMonth[currentMonthAndYear] || [];
 
 			// Reset hours
 			newData.forEach((p) => {
@@ -146,25 +172,51 @@ export default function Home() {
 				}
 			});
 
-			setData(newData);
+			setData({
+				...data,
+				byMonth: {
+					...data?.byMonth,
+					[currentMonthAndYear]: newData,
+				},
+				name: data?.name ?? "",
+				lastSaveDate: new Date(),
+				apiSettings: data?.apiSettings ?? {
+					url: "https://api.example.cz",
+					username: "username",
+					password: "password",
+				},
+			});
 		});
 	};
 
 	const PullProjectsClick = async () => {
-		var settings = storageJSON.get;
-		PullProjects(settings.apiSettings).then((projects: ProjectAllUserOutput[]) => {
+		var apiSettings = data?.apiSettings;
+		if (!apiSettings) {
+			return;
+		}
+		PullProjects(apiSettings).then((projects: ProjectAllUserOutput[]) => {
 			console.log(projects);
 
-			// Create data from projects
-			var data: WorkItem[] = projects.map((p) => {
-				return {
-					projectName: p.DisplayName || "", // Ensure projectName is always a string
-					completedWork: 0,
-					monthlyHours: 0,
-				};
+			setData({
+				...data,
+				byMonth: {
+					...data?.byMonth,
+					[currentMonthAndYear]: projects.map((p) => {
+						return {
+							projectName: p.DisplayName || "", // Ensure projectName is always a string
+							completedWork: 0,
+							monthlyHours: 0,
+						};
+					}),
+				},
+				name: data?.name ?? "",
+				lastSaveDate: new Date(),
+				apiSettings: data?.apiSettings ?? {
+					url: "https://api.example.cz",
+					username: "username",
+					password: "password",
+				},
 			});
-
-			setData(data);
 		});
 	};
 
@@ -173,12 +225,14 @@ export default function Home() {
 	const [thisMonthAvailableWorkHours, setThisMonthAvailableWorkHours] = useState<number>(0);
 	const [thisMonthCompletedWorkHours, setThisMonthCompletedWorkHours] = useState<number>(0);
 	const [thisMonthRemainingWorkHours, setThisMonthRemainingWorkHours] = useState<number>(0);
+	const [thisMonthTotalWorkHours, setThisMonthTotalWorkHours] = useState<number>(0);
 
 	useEffect(() => {
 		let currentMonthProjects = data?.byMonth[currentMonthAndYear] || [];
 
 		setThisMonthCompletedWorkHours(currentMonthProjects.reduce((acc, item) => acc + item.completedWork, 0));
-		setThisMonthRemainingWorkHours(thisMonthWorkHours- thisMonthFreeHours - currentMonthProjects.reduce((acc, item) => acc + item.completedWork, 0));
+		setThisMonthRemainingWorkHours(thisMonthWorkHours + thisMonthFreeHours - currentMonthProjects.reduce((acc, item) => acc + item.completedWork, 0));
+		setThisMonthTotalWorkHours(thisMonthWorkHours + thisMonthFreeHours);
 	}, [currentMonthAndYear, data, thisMonthFreeHours, thisMonthWorkHours]);
 
 	useEffect(() => {
@@ -189,7 +243,7 @@ export default function Home() {
 
 
 		const workHoursMissed = workHours(startDate, date)
-		setThisMonthAvailableWorkHours(workHours(startDate,endDate) - holidaysHours(date) - workHoursMissed);
+		setThisMonthAvailableWorkHours(workHours(startDate,endDate) - workHoursMissed);
 		setThisMonthWorkHours(workHours(startDate,endDate));
 		setThisMothFreeHours(holidaysHours(date));
 	}, [date]);
