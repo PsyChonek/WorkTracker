@@ -1,0 +1,4 @@
+
+/** EntityNoteDelResponse */
+export interface EntityNoteDelResponse {
+}

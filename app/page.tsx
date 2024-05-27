@@ -10,31 +10,50 @@ import { Label } from "@/components/ui/label";
 import Holidays from "date-holidays";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { set } from "date-fns";
+import { Login, PullProjects, PullWorkItems } from "./services/tr";
+import { json } from "stream/consumers";
+import { ProjectAllUserOutput, WorksheetAllOutput } from "./trclient/applicationwebservice";
 
 export default function Home() {
 	// Current date
 	const [date, setDate] = useState<Date>(new Date());
 
+	let storageJSON = {
+		get get(): StorageJSON {
+			return JSON.parse(
+				localStorage.getItem("storageJSON") ||
+					`{
+					"byMonth": {},
+					"name": "Work Tracker",
+					"lastSaveDate": "${new Date().toISOString()}",
+					"apiSettings": {
+						"url": "",
+						"username": "",
+						"password": ""
+					}
+				}`
+			);
+		},
+
+		set set(value: StorageJSON) {
+			localStorage.setItem("storageJSON", JSON.stringify(value));
+		},
+	};
+
+	const [jsonData, setJsonData] = useState<StorageJSON>(storageJSON.get);
+
+	useEffect(() => {
+		storageJSON.set = jsonData;
+	}, [jsonData]);
+
 	// Load data from local storage
 	const loadData = () => {
-		if (typeof window === "undefined") {
+		try {
+			var dateKey = "M" + date.getMonth() + "Y" + date.getFullYear();
+			return storageJSON.get.byMonth[dateKey] || [];
+		} catch (error) {
 			return [];
 		}
-
-		const storage = localStorage.getItem("storageJSON") || null;
-		if (storage !== null) {
-			try {
-				const storageJSON: StorageJSON = JSON.parse(storage);
-
-				var dateKey = "M" + date.getMonth() + "Y" + date.getFullYear();
-
-				return storageJSON.byMonth[dateKey] || [];
-			} catch (e) {
-				console.log("Error parsing JSON", e);
-			}
-		}
-		return [];
 	};
 
 	// Calculate work hours without holidays
@@ -117,6 +136,7 @@ export default function Home() {
 	const [thisMonthAvailableWorkHours, setThisMonthAvailableWorkHours] = useState<number>(remainingWorkHours());
 	const [thisMonthCompletedWorkHours, setThisMonthCompletedWorkHours] = useState<number>(data.reduce((acc, item) => acc + item.completedWork, 0));
 	const [thisMonthRemainingWorkHours, setThisMonthRemainingWorkHours] = useState<number>(remainingWorkHours() - data.reduce((acc, item) => acc + item.completedWork, 0));
+	const [thisMonthTotalWorkHours, setThisMonthTotalWorkHours] = useState<number>(workHours() + holidaysHours());
 
 	function addNew() {
 		setData([...data, { projectName: "New Project", monthlyHours: 0, completedWork: 0 }]);
@@ -124,24 +144,72 @@ export default function Home() {
 
 	useEffect(() => {
 		setThisMonthCompletedWorkHours(data.reduce((acc, item) => acc + item.completedWork, 0));
-		setThisMonthRemainingWorkHours(remainingWorkHours() - data.reduce((acc, item) => acc + item.completedWork, 0));
-
-		var dateKey = "M" + date.getMonth() + "Y" + date.getFullYear();
-
-		let storageJSON: StorageJSON = {
-			byMonth: { [dateKey]: data },
-			name: "Work Tracker",
-			lastSaveDate: new Date(),
-		};
-
-		if (typeof window === "undefined") {
-			return;
-		}
-
-		localStorage.setItem("storageJSON", JSON.stringify(storageJSON));
-
+		setThisMonthRemainingWorkHours(workHours() + holidaysHours() - data.reduce((acc, item) => acc + item.completedWork, 0));
 		// eslint-disable-next-line react-hooks/exhaustive-deps
+
+		setJsonData({
+			...storageJSON.get,
+			byMonth: {
+				...storageJSON.get.byMonth,
+				["M" + date.getMonth() + "Y" + date.getFullYear()]: data,
+			},
+		});
 	}, [data]);
+
+	const LoginClick = () => {
+		var settings = storageJSON.get;
+		Login(settings.apiSettings);
+	};
+
+	const PullWorkItemsClick = () => {
+		var settings = storageJSON.get;
+		PullWorkItems(settings.apiSettings).then((workItems: WorksheetAllOutput[]) => {
+			console.log(workItems);
+
+			// Filter work items by date
+			workItems = workItems.filter((wi) => {
+				let date = new Date(wi.DateWork || "");
+				return date.getMonth() === new Date().getMonth() && date.getFullYear() === new Date().getFullYear();
+			});
+
+			console.log(workItems);
+
+			// Add to each project hours from work items
+			var newData = [...data];
+
+			// Reset hours
+			newData.forEach((p) => {
+				p.completedWork = 0;
+			});
+
+			workItems.forEach((wi) => {
+				var project = newData.find((p) => p.projectName === wi.Project);
+				if (project) {
+					project.completedWork += Number(wi.Hours) || 0;
+				}
+			});
+
+			setData(newData);
+		});
+	};
+
+	const PullProjectsClick = async () => {
+		var settings = storageJSON.get;
+		PullProjects(settings.apiSettings).then((projects: ProjectAllUserOutput[]) => {
+			console.log(projects);
+
+			// Create data from projects
+			var data: WorkItem[] = projects.map((p) => {
+				return {
+					projectName: p.DisplayName || "", // Ensure projectName is always a string
+					completedWork: 0,
+					monthlyHours: 0,
+				};
+			});
+
+			setData(data);
+		});
+	};
 
 	return (
 		<main className="m-20">
@@ -184,6 +252,9 @@ export default function Home() {
 				/>
 
 				<div className="flex flex-col items-start justify-center gap-4">
+					<Label>
+						Total hours: <b>{thisMonthTotalWorkHours}</b>
+					</Label>
 					<Label>
 						Work hours: <b>{thisMonthWorkHours}</b>
 					</Label>
@@ -288,15 +359,24 @@ export default function Home() {
 								<DialogHeader>
 									<DialogTitle>Saved data</DialogTitle>
 									<Textarea
-										defaultValue={(typeof window === "undefined" ? "" : localStorage.getItem("storageJSON")) ?? ""}
+										value={JSON.stringify(jsonData)}
 										onChange={(e) => {
-											localStorage.setItem("storageJSON", e.target.value);
-											setData(loadData());
+											console.log(e.target.value);
+											setJsonData(JSON.parse(e.target.value));
 										}}
 									/>
 								</DialogHeader>
 							</DialogContent>
 						</Dialog>
+						<button onClick={LoginClick} className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded mt-4">
+							Log in
+						</button>
+						<button onClick={PullWorkItemsClick} className="bg-purple-500 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded mt-4">
+							Pull work items
+						</button>
+						<button onClick={PullProjectsClick} className="bg-teal-500 hover:bg-teal-700 text-white font-bold py-2 px-4 rounded mt-4">
+							Pull projects
+						</button>
 					</div>
 				</div>
 			</div>

@@ -7,4 +7,13 @@ export interface StorageJSON{
     }
     name: string
     lastSaveDate: Date
+
+    // API settings
+    apiSettings: APISettings
+}
+
+export interface APISettings{
+    url: string
+    username: string
+    password: string
 }

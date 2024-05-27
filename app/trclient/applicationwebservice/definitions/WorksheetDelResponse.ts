@@ -1,0 +1,4 @@
+
+/** WorksheetDelResponse */
+export interface WorksheetDelResponse {
+}

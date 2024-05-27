@@ -1,0 +1,4 @@
+
+/** EntityDocumentDelResponse */
+export interface EntityDocumentDelResponse {
+}
