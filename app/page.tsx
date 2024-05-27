@@ -3,13 +3,14 @@
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { WorkItem } from "./types/workItem";
 import { StorageJSON } from "./types/storageJSON";
-import { use, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Calendar } from "@/components/ui/calendar";
 import { Label } from "@/components/ui/label";
 import Holidays from "date-holidays";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
+import { holidaysHours, remainingWorkHours, workHours } from "./functions/calendarDays";
 import { Login, PullProjects, PullWorkItems } from "./services/tr";
 import { json } from "stream/consumers";
 import { ProjectAllUserOutput, WorksheetAllOutput } from "./trclient/applicationwebservice";
@@ -17,143 +18,99 @@ import { ProjectAllUserOutput, WorksheetAllOutput } from "./trclient/application
 export default function Home() {
 	// Current date
 	const [date, setDate] = useState<Date>(new Date());
+	const [data, setData] = useState<StorageJSON | null>(null);
 
-	let storageJSON = {
-		get get(): StorageJSON {
-			return JSON.parse(
-				localStorage.getItem("storageJSON") ||
-					`{
-					"byMonth": {},
-					"name": "Work Tracker",
-					"lastSaveDate": "${new Date().toISOString()}",
-					"apiSettings": {
-						"url": "",
-						"username": "",
-						"password": ""
-					}
-				}`
-			);
-		},
-
-		set set(value: StorageJSON) {
-			localStorage.setItem("storageJSON", JSON.stringify(value));
-		},
-	};
-
-	const [jsonData, setJsonData] = useState<StorageJSON>(storageJSON.get);
-
-	useEffect(() => {
-		storageJSON.set = jsonData;
-	}, [jsonData]);
+	const [currentMonthAndYear, setCurrentMonthAndYear] = useState<string>("M" + date.getMonth() + "Y" + date.getFullYear());
 
 	// Load data from local storage
-	const loadData = () => {
-		try {
-			var dateKey = "M" + date.getMonth() + "Y" + date.getFullYear();
-			return storageJSON.get.byMonth[dateKey] || [];
-		} catch (error) {
-			return [];
-		}
-	};
+	const loadData = (): StorageJSON => {
+		const storage = localStorage.getItem("storageJSON") || null;
 
-	// Calculate work hours without holidays
-	function getWorkingDaysWithoutHolidays(startDate: Date, endDate: Date) {
-		var result = 0;
-
-		var currentDate = new Date(startDate.valueOf());
-
-		while (currentDate <= endDate) {
-			var weekDay = currentDate.getDay();
-
-			if (weekDay != 0 && weekDay != 6) result++;
-
-			currentDate.setDate(currentDate.getDate() + 1);
-		}
-
-		return result;
-	}
-
-	// Calculate holidays
-	function getHolidaysDaysInWorkingDays(startDate: Date, endDate: Date) {
-		var hd: Holidays = new Holidays("CZ");
-		let hDays: any = hd.getHolidays(startDate.getFullYear());
-
-		var result = 0;
-
-		var currentDate = new Date(startDate.valueOf());
-
-		while (currentDate <= endDate) {
-			var weekDay = currentDate.getDay();
-
-			if (weekDay != 0 && weekDay != 6 && hDays.some((d: any) => d.start.toISOString() === currentDate.toISOString())) {
-				result++;
+		if (storage !== null) {
+			try {
+				const storageJSON: StorageJSON = JSON.parse(storage);
+				return storageJSON;
+			} catch (e) {
+				console.error("Error parsing JSON", e);
 			}
-
-			currentDate.setDate(currentDate.getDate() + 1);
 		}
 
-		return result;
-	}
-
-	// Calculate work hours
-	const workHours = (): number => {
-		let workHours = 0;
-
-		let startDate = new Date(date.getFullYear(), date.getMonth(), 1);
-		let endDate = new Date(date.getFullYear(), date.getMonth() + 1, 0);
-
-		workHours = getWorkingDaysWithoutHolidays(startDate, endDate) * 8;
-		workHours -= getHolidaysDaysInWorkingDays(startDate, endDate) * 8;
-
-		return workHours;
+		return {
+			byMonth: {},
+			name: "Work Tracker",
+			lastSaveDate: new Date(),
+		};
 	};
 
-	// Calculate holidays hours
-	const holidaysHours = (): number => {
-		let startDate = new Date(date.getFullYear(), date.getMonth(), 1);
-		let endDate = new Date(date.getFullYear(), date.getMonth() + 1, 0);
-
-		return getHolidaysDaysInWorkingDays(startDate, endDate) * 8;
+	const saveData = (data: StorageJSON) => {
+		localStorage.setItem("storageJSON", JSON.stringify(data));
 	};
 
-	// Calculate remaining work hours
-	const remainingWorkHours = (): number => {
-		let remainingWorkHours = 0;
-
-		let startDate = date;
-		let endDate = new Date(date.getFullYear(), date.getMonth() + 1, 0);
-
-		remainingWorkHours = getWorkingDaysWithoutHolidays(startDate, endDate) * 8;
-		remainingWorkHours -= getHolidaysDaysInWorkingDays(startDate, endDate) * 8;
-
-		return remainingWorkHours;
+	const updateWorkItem = (index: number, workItem: WorkItem) => {
+		// Create a new object with the updated data
+		const newData: StorageJSON = {
+			...data,
+			byMonth: {
+				...data?.byMonth,
+				[currentMonthAndYear]: data?.byMonth[currentMonthAndYear]?.map((item, i) => (i === index ? workItem : item)) ?? [],
+			},
+			name: data?.name ?? "",
+			lastSaveDate: new Date(),
+		};	
+	
+		setData(newData);
 	};
 
-	const [data, setData] = useState<WorkItem[]>(loadData());
+	const addWorkItem = () => {
+		// Create a new object with the updated data
+		const newData: StorageJSON = {
+			...data,
+			byMonth: {
+				...data?.byMonth,
+				[currentMonthAndYear]: [
+					...(data?.byMonth[currentMonthAndYear] ?? []),
+					{
+						projectName: "New Project",
+						monthlyHours: 0,
+						completedWork: 0,
+					},
+				],
+			},
+			name: data?.name ?? "",
+			lastSaveDate: new Date(),
+		};
 
-	const [thisMonthWorkHours, setThisMonthWorkHours] = useState<number>(workHours());
-	const [thisMonthFreeHours, setThisMothFreeHours] = useState<number>(holidaysHours());
-	const [thisMonthAvailableWorkHours, setThisMonthAvailableWorkHours] = useState<number>(remainingWorkHours());
-	const [thisMonthCompletedWorkHours, setThisMonthCompletedWorkHours] = useState<number>(data.reduce((acc, item) => acc + item.completedWork, 0));
-	const [thisMonthRemainingWorkHours, setThisMonthRemainingWorkHours] = useState<number>(remainingWorkHours() - data.reduce((acc, item) => acc + item.completedWork, 0));
-	const [thisMonthTotalWorkHours, setThisMonthTotalWorkHours] = useState<number>(workHours() + holidaysHours());
+		setData(newData);
+	};
 
-	function addNew() {
-		setData([...data, { projectName: "New Project", monthlyHours: 0, completedWork: 0 }]);
-	}
+	const removeWorkItem = (index: number) => {
+		// Remove the item from the array
+		// Create a new object with the updated data
+		const newData: StorageJSON = {
+			...data,
+			byMonth: {
+				...data?.byMonth,
+				[currentMonthAndYear]: data?.byMonth[currentMonthAndYear]?.filter((_, i) => i !== index) ?? [],
+			},
+			name: data?.name ?? "",
+			lastSaveDate: new Date(),
+		};
+
+		setData(newData);
+	};
 
 	useEffect(() => {
-		setThisMonthCompletedWorkHours(data.reduce((acc, item) => acc + item.completedWork, 0));
-		setThisMonthRemainingWorkHours(workHours() + holidaysHours() - data.reduce((acc, item) => acc + item.completedWork, 0));
-		// eslint-disable-next-line react-hooks/exhaustive-deps
+		if (typeof window === "undefined") {
+			return;
+		}
 
-		setJsonData({
-			...storageJSON.get,
-			byMonth: {
-				...storageJSON.get.byMonth,
-				["M" + date.getMonth() + "Y" + date.getFullYear()]: data,
-			},
-		});
+		if (data === undefined || data === null) {
+			let storageJSON = loadData();
+			setData(storageJSON);
+			return;
+		}
+
+		saveData(data);
 	}, [data]);
 
 	const LoginClick = () => {
@@ -210,6 +167,32 @@ export default function Home() {
 			setData(data);
 		});
 	};
+
+	const [thisMonthWorkHours, setThisMonthWorkHours] = useState<number>(0);
+	const [thisMonthFreeHours, setThisMothFreeHours] = useState<number>(0);
+	const [thisMonthAvailableWorkHours, setThisMonthAvailableWorkHours] = useState<number>(0);
+	const [thisMonthCompletedWorkHours, setThisMonthCompletedWorkHours] = useState<number>(0);
+	const [thisMonthRemainingWorkHours, setThisMonthRemainingWorkHours] = useState<number>(0);
+
+	useEffect(() => {
+		let currentMonthProjects = data?.byMonth[currentMonthAndYear] || [];
+
+		setThisMonthCompletedWorkHours(currentMonthProjects.reduce((acc, item) => acc + item.completedWork, 0));
+		setThisMonthRemainingWorkHours(thisMonthWorkHours- thisMonthFreeHours - currentMonthProjects.reduce((acc, item) => acc + item.completedWork, 0));
+	}, [currentMonthAndYear, data, thisMonthFreeHours, thisMonthWorkHours]);
+
+	useEffect(() => {
+		setCurrentMonthAndYear("M" + date.getMonth() + "Y" + date.getFullYear());
+
+		const startDate = new Date(date.getFullYear(), date.getMonth(), 1);
+		const endDate = new Date(date.getFullYear(), date.getMonth() + 1, 0);
+
+
+		const workHoursMissed = workHours(startDate, date)
+		setThisMonthAvailableWorkHours(workHours(startDate,endDate) - holidaysHours(date) - workHoursMissed);
+		setThisMonthWorkHours(workHours(startDate,endDate));
+		setThisMothFreeHours(holidaysHours(date));
+	}, [date]);
 
 	return (
 		<main className="m-20">
@@ -276,15 +259,15 @@ export default function Home() {
 			<div className="flex flex-col items-center justify-center py-2 flex-wrap">
 				<div className="flex flex-col items-center justify-center w-full gap-5 flex-wrap">
 					<div className="flex flex-row items-center justify-center w-full gap-5 flex-wrap">
-						{data.map((item, index) => (
+						{data?.byMonth[currentMonthAndYear]?.map((item, index) => (
 							<Card key={index} className="flex-wrap">
 								<CardHeader>
 									<CardTitle>
 										<Input
 											onChange={(e) => {
-												const newData = [...data];
-												newData[index].projectName = e.target.value;
-												setData(newData);
+												let currentMonthProjects = data?.byMonth[currentMonthAndYear] || [];
+												currentMonthProjects[index].projectName = e.target.value;
+												updateWorkItem(index, currentMonthProjects[index]);
 											}}
 											type="text"
 											value={item.projectName}
@@ -298,10 +281,9 @@ export default function Home() {
 										value={item.monthlyHours}
 										onChange={(e) => {
 											let value = Number(e.target.value);
-
-											const newData = [...data];
-											newData[index].monthlyHours = value;
-											setData(newData);
+											let currentMonthProjects = data?.byMonth[currentMonthAndYear] || [];
+											currentMonthProjects[index].monthlyHours = value;
+											updateWorkItem(index, currentMonthProjects[index]);
 
 											// Remove leading zeros
 											if (e.target.value.startsWith("0")) {
@@ -315,9 +297,9 @@ export default function Home() {
 										value={item.completedWork}
 										onChange={(e) => {
 											let value = Number(e.target.value);
-											const newData = [...data];
-											newData[index].completedWork = value;
-											setData(newData);
+											let currentMonthProjects = data?.byMonth[currentMonthAndYear] || [];
+											currentMonthProjects[index].completedWork = value;
+											updateWorkItem(index, currentMonthProjects[index]);
 
 											// Remove leading zeros
 											if (e.target.value.startsWith("0")) {
@@ -328,18 +310,16 @@ export default function Home() {
 								</CardContent>
 								<CardContent className="flex flex-row gap-4">
 									<CardDescription>Remaining Work</CardDescription>
-									<span>{item.monthlyHours - item.completedWork}</span>
+									<span>{(item.monthlyHours - item.completedWork) < 0 ? 0 : (item.monthlyHours - item.completedWork)}</span>
 									<CardDescription>Percentage Completed</CardDescription>
 									<span>{item.monthlyHours > 0 ? ((item.completedWork / item.monthlyHours) * 100).toFixed(2) : 0}%</span>
 									<CardDescription>MD Remaining</CardDescription>
-									<span>{item.monthlyHours / 8 - item.completedWork / 8}</span>
+									<span>{(item.monthlyHours / 8 - item.completedWork / 8) < 0 ? 0 : (item.monthlyHours / 8 - item.completedWork / 8) }</span>
 								</CardContent>
 								<CardFooter className="flex flex-row-reverse gap-4">
 									<button
 										onClick={() => {
-											const newData = [...data];
-											newData.splice(index, 1);
-											setData(newData);
+											removeWorkItem(index);
 										}}
 										className="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded"
 									>
@@ -350,7 +330,7 @@ export default function Home() {
 						))}
 					</div>
 					<div className="flex flex-row items-center justify-center w-full gap-5">
-						<button onClick={addNew} className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded mt-4">
+						<button onClick={addWorkItem} className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded mt-4">
 							Add New
 						</button>
 						<Dialog>
@@ -359,10 +339,14 @@ export default function Home() {
 								<DialogHeader>
 									<DialogTitle>Saved data</DialogTitle>
 									<Textarea
-										value={JSON.stringify(jsonData)}
+										defaultValue={data ? JSON.stringify(data, null, 2) : ""}
 										onChange={(e) => {
-											console.log(e.target.value);
-											setJsonData(JSON.parse(e.target.value));
+											try {
+												const storageJSON: StorageJSON = JSON.parse(e.target.value);
+												setData(storageJSON);
+											} catch (e) {
+												console.error("Error parsing JSON", e);
+											}
 										}}
 									/>
 								</DialogHeader>
