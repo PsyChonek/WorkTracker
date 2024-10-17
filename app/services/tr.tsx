@@ -10,7 +10,7 @@ import Cookies from "js-cookie";
 export function Login(apiSettings: APISettings): void {
 	let input: LoginNewInput = {
 		Username: apiSettings.username,
-		Password: apiSettings.password,
+		Password: atob(apiSettings.password),
 	};
 
 	LoginNew(input, apiSettings.url).then((response: LoginNewResult) => {
@@ -27,8 +27,24 @@ export function Login(apiSettings: APISettings): void {
  * Pull all workitems from the API
  */
 export async function PullWorkItems(apiSettings: APISettings): Promise<WorksheetAllOutput[]> {
+	// From date previous month xs:dateTime
+	let fromDate = new Date();
+	fromDate.setMonth(fromDate.getMonth() - 1);
+	fromDate.setDate(1);
+
+	// To date next month xs:dateTime
+	let toDate = new Date();
+	toDate.setMonth(toDate.getMonth() + 1);
+	toDate.setDate(0);
+
+	// Format dates
+	let fromDatem = fromDate.toISOString();
+	let toDatem = toDate.toISOString();
+
 	let input: WorksheetAllInput = {
 		ID_Login: Cookies.get("login"),
+		DateFrom: fromDatem,
+		DateTo: toDatem,
 	};
 
 	return WorksheetAll(input, apiSettings.url).then((response: WorksheetAllOutput[]) => {
